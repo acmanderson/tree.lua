@@ -54,9 +54,22 @@ local function get_dir_tree()
     return master
 end
 
-local function dump(t, indent)
+local function get_format(bars_to_ignore, indent)
+	local ret_string = ''
+	for i=1,indent do
+		if not bars_to_ignore[i] then
+			ret_string = ret_string.."┃   "
+		else
+			ret_string = ret_string.."    "
+		end
+	end
+	return ret_string
+end
+
+local function dump(t, indent, bars_to_ignore)
     local t = t or get_dir_tree()
     local indent = indent or 0
+    local bars_to_ignore = bars_to_ignore or {}
     local names = {}
 
     for n,g in pairs(t) do
@@ -67,13 +80,18 @@ local function dump(t, indent)
         local v = t[n]
         local line_prefix = ''
         if indent > 0 then
-        	local last_item_prefix = string.mult("┃   ", indent - 1).."┣"
-        	if i == #names then last_item_prefix = string.mult("┃   ", indent - 1).."┗" end
+        	local last_item_prefix = get_format(bars_to_ignore, indent - 1).."┣"
+        	if i == #names then 
+        		last_item_prefix = get_format(bars_to_ignore, indent - 1).."┗"
+        		bars_to_ignore[indent] = true
+        	end
         	line_prefix = last_item_prefix.."━"
         end
         print(line_prefix..tostring(n))
-        dump(v, indent + 1)
+        dump(v, indent + 1, bars_to_ignore)
+        
     end
+    bars_to_ignore[indent] = nil
 end
 
 dump()
