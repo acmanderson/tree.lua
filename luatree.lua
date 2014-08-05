@@ -9,13 +9,23 @@ local MIDDLE_CONNECTOR = "┣"
 local ENDING_CONNECTOR = "┗"
 local HORIZONTAL_CONNECTOR = "━━ "
 
-local TREE_ARGS = {a=false}
+local flags = {a=false, d=false, f=false}
 
 local num_dirs = 0
 local num_files = 0
 
-local function get_arg_from_string(arg_string)
-	return (arg_string:gsub('^%-*', ''))
+local function get_args_from_string(arg_string)
+	local strip_dashes = (arg_string:gsub('^%-+', ''))
+	local args_list
+	if arg_string:match('^%-[^%-]') then
+		args_list = {}
+		for c in strip_dashes:gmatch('.') do
+			table.insert(args_list, c)
+		end
+	else
+		args_list = {strip_dashes}
+	end
+	return args_list
 end
 
 local path
@@ -23,9 +33,11 @@ for i = 1, #arg do
 	if not arg[i]:match('^%-') then
 		path = arg[i]
 	else
-		local cli_arg = get_arg_from_string(arg[i])
-		if TREE_ARGS[cli_arg] ~= nil then
-			TREE_ARGS[cli_arg] = true
+		local cli_args = get_args_from_string(arg[i])
+		for _, cli_arg in pairs(cli_args) do
+			if flags[cli_arg] ~= nil then
+				flags[cli_arg] = true
+			end
 		end
 	end
 end
@@ -54,10 +66,12 @@ local function get_dirs_and_files(dir)
     local function yieldtree(dir)
         for entry in lfs.dir(dir) do
             if entry ~= "." and entry ~= ".." then
-            	if not entry:match('^%.') or TREE_ARGS['a'] then
+            	if not entry:match('^%.') or flags['a'] then
 	                entry=dir.."/"..entry
 	                local attr=lfs.attributes(entry)
-	                coroutine.yield(entry,attr)
+	                if not flags['d'] or attr.mode == "directory" then
+	                	coroutine.yield(entry,attr)
+	                end
 	                if attr.mode == "directory" then
 	                	num_dirs = num_dirs + 1
 	                    yieldtree(entry)
@@ -74,15 +88,19 @@ end
 
 local function get_dir_tree()
     local master = {[path]={}}
-    local current = master[path]
     for filename, attr in get_dirs_and_files(path) do
+    	local current = master[path]
+    	local root_path = path
         for i, part in pairs((filename:gsub(path, '', 1)):split(SEPARATOR)) do
+        	if flags['f'] then
+        		root_path = root_path..'/'..part
+        		part = root_path
+        	end
             if not current[part] then
                 current[part] = {}
             end
             current = current[part]
         end
-        current = master[path]
     end
     return master
 end
@@ -129,4 +147,9 @@ local function print_tree(t, indent_level, markers_to_ignore)
 end
 
 print_tree()
-print(string.format("\n%s directories, %s files", num_dirs, num_files))
+local dirs_string = string.format("\n%s directories", num_dirs)
+local files_string = ''
+if not flags['d'] then
+	files_string = string.format(", %s files", num_files)
+end
+print(dirs_string..files_string)
